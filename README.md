@@ -13,6 +13,7 @@
 ## 📺 Project Demo Video
 > 🎥 **Walkthrough & Pipeline Demo:**  
 > [![Watch Demo Video](https://img.shields.io/badge/YouTube-Watch%20Demo%20Video-red?style=for-the-badge&logo=youtube)](YOUR_DEMO_VIDEO_LINK_HERE)  
+> *(Click the badge above or replace `YOUR_DEMO_VIDEO_LINK_HERE` with your recorded demo video link)*
 
 ---
 
@@ -153,11 +154,98 @@ Following the **Microsoft Cloud Adoption Framework (CAF)**:
 
 ---
 
-## 🛡️ Governance & Security Boundary Analysis
+## 🛡️ Deep Dive: Governance, Unity Catalog & Cross-Platform Security Boundaries
 
-A critical architectural finding of this project is understanding **cross-platform governance boundaries**:
-1. **Shortcuts Do Not Automatically Inherit Unity Catalog ACLs:** When mounting underlying ADLS Gen2 Delta files into Microsoft Fabric, Unity Catalog's table-level and row-level security permissions do not automatically flow across tenant boundaries.
-2. **Explicit Governance in Fabric:** Data access control must be configured natively in Microsoft Fabric using **Workspace Roles**, **Lakehouse item permissions**, and **Row-Level Security (RLS)** in the Power BI Semantic Model.
+> ### ⚠️ An Honest Architectural Limitation
+> *"Going straight to the storage layer via OneLake Shortcuts skips Unity Catalog's governance engine. For anything beyond an isolated prototype, that access control perimeter must be explicitly re-architected on the Microsoft Fabric side."*
+
+To truly understand why this limitation exists and how real enterprise data architects design around it, we must analyze the distinction between the **Control Plane (Metadata & Governance)** and the **Data Plane (Storage Files)**.
+
+---
+
+### 1. What is Databricks Unity Catalog & How Does It Work?
+**Unity Catalog (UC)** is Databricks' centralized multi-cloud governance layer for data and AI assets. It introduces a **3-level namespace** (`catalog.schema.table / volume / model`) and operates as a secure **Control Plane**:
+
+```
+[User / BI Query] 
+       │
+       ▼ (1. Authenticates & requests permission)
+┌─────────────────────────────────────────────────────────────┐
+│ 🛡️ Unity Catalog Metastore (Control Plane / Governance Engine)│
+│  - Evaluates Role-Based Access Control (RBAC)               │
+│  - Enforces Dynamic Column Masking & Row-Level Filters (RLS) │
+│  - Records Audit Trails & End-to-End Data Lineage           │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (2. Generates short-lived credentials)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 📦 ADLS Gen2 Storage Account (Data Plane / Physical Storage) │
+│  - Raw Parquet Files & `_delta_log` Transaction History     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### What Happens Inside Databricks with Unity Catalog:
+* **No Direct Storage Keys:** Users and Spark clusters **never** get direct access keys to the raw ADLS Gen2 storage account.
+* **Dynamic Security Enforcement:** If an analyst only has permission to view customers in California, Unity Catalog dynamically rewrites the query or applies row filters before reading files from disk.
+* **Lineage & Audit Tracking:** Every single `SELECT`, `UPDATE`, or `DROP` is permanently logged into central system tables.
+
+---
+
+### 2. The Trade-Off: What Happens When We Mount ADLS Gen2 directly in Fabric?
+
+When Microsoft Fabric connects to ADLS Gen2 using a **OneLake Storage Shortcut** (via Storage Account Keys), **it accesses the Data Plane directly**, bypassing the Databricks compute engine and Unity Catalog Metastore entirely:
+
+```mermaid
+flowchart LR
+    subgraph UC_Control_Plane ["🛡️ Databricks Control Plane"]
+        UC["Unity Catalog Metastore\n(ACLs, Row Filters, Lineage, Auditing)"]
+    end
+
+    subgraph Data_Plane ["☁️ ADLS Gen2 Storage (Data Plane)"]
+        Files[("cnt-unitycatalog / Delta Parquet Files\n& _delta_log")]
+    end
+
+    subgraph Fabric_Environment ["🏢 Microsoft Fabric"]
+        Shortcut["OneLake Shortcut\n(Direct Storage Link via Key)"]
+        PowerBI["Power BI Direct Lake Model"]
+    end
+
+    UC -.->|Governs Internal Compute| Files
+    Shortcut ==>|Reads Raw Parquet Files Directly| Files
+    Shortcut --> PowerBI
+
+    style UC_Control_Plane fill:#ffebee,stroke:#c62828,stroke-width:2px;
+    style Data_Plane fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    style Fabric_Environment fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+```
+
+#### What Works Seamlessly:
+* ✅ **Zero-Copy Delta Lake Compatibility:** Because Delta Lake is an open standard, Fabric reads the transaction log (`_delta_log`) and Parquet data perfectly without ETL duplication.
+* ✅ **Direct Lake In-Memory Speed:** Power BI loads the Parquet files directly into Analysis Services memory with blazing performance.
+
+#### What Does NOT Flow Across the Boundary:
+* ❌ **Unity Catalog Access Grants:** Permissions granted via `GRANT SELECT ON TABLE` in Databricks do not exist in Fabric.
+* ❌ **Row Filters & Column Masks:** If sensitive columns (e.g., SSN, income) are masked in Unity Catalog, Fabric will read the unmasked raw storage file unless secured on the Fabric side.
+* ❌ **Centralized Audit Lineage:** Queries run from Power BI/Fabric will show in Azure Storage access metrics, but will not appear in Databricks Unity Catalog audit logs.
+
+---
+
+### 3. Production Enterprise Mitigation Strategies
+
+In real-world enterprise architectures, how do data engineering teams bridge this governance gap?
+
+1. **Re-architecting Governance in Microsoft Fabric (Adopted Pattern):**
+   * Implement **Workspace Roles (Viewer/Contributor)** and **Lakehouse item permissions** to control who can query the shortcut.
+   * Configure **Row-Level Security (RLS)** and **Object-Level Security (OLS)** inside the Power BI Semantic Model to enforce downstream business access boundaries.
+2. **Federated Enterprise Tenant Pairing (Mirrored Catalog):**
+   * If both environments exist within the same corporate Entra ID tenant with administrative permissions, utilizing Fabric's **Mirrored Azure Databricks Catalog** feature allows Fabric to query the Unity Catalog metadata API directly.
+3. **Open Delta Sharing Protocol:**
+   * Configure Databricks Unity Catalog as a **Delta Sharing Provider** and Microsoft Fabric as a **Delta Sharing Recipient**. This allows Unity Catalog to dynamically generate scoped, short-lived tokens and enforce table-level sharing contracts across external organizations.
+
+---
+
+### 💡 Summary: Why This Distinction Matters
+Demonstrating an understanding of **Storage-Layer Interoperability vs. Control-Plane Governance** reflects senior-level data architecture maturity. Building a zero-copy data bridge proves technical feasibility; understanding the security boundaries proves enterprise readiness.
 
 ---
 
