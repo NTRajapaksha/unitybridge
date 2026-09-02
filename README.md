@@ -13,7 +13,6 @@
 ## 📺 Project Demo Video
 > 🎥 **Walkthrough & Pipeline Demo:**  
 > [![Watch Demo Video](https://img.shields.io/badge/YouTube-Watch%20Demo%20Video-red?style=for-the-badge&logo=youtube)](YOUR_DEMO_VIDEO_LINK_HERE)  
-> *(Click the badge above or replace `YOUR_DEMO_VIDEO_LINK_HERE` with your recorded demo video link)*
 
 ---
 
@@ -40,35 +39,37 @@ By leveraging the open **Delta Lake** storage standard on **Azure Data Lake Stor
 
 ```mermaid
 flowchart TD
-    subgraph Azure_Databricks_Tenant ["🏢 Azure Databricks Environment (Tenant A)"]
-        Raw["📄 Raw Credit Risk Data (CSV)"] -->|PySpark Ingestion| Bronze[("🥉 Bronze Delta Table")]
-        Bronze -->|Cleansing & Imputation| Silver[("🥈 Silver Delta Table")]
-        Silver -->|Aggregation| Gold[("🥇 Gold Delta Summary")]
-        Silver -->|Feature Pipeline| ML["🤖 MLflow Pipeline Model (Unity Catalog Volume)"]
+    subgraph Azure_Databricks_Tenant ["Azure Databricks Environment - Tenant A"]
+        Raw["Raw Credit Risk Data (CSV)"] -->|"PySpark Ingestion"| Bronze[("Bronze Delta Table")]
+        Bronze -->|"Cleansing & Imputation"| Silver[("Silver Delta Table")]
+        Silver -->|"Aggregation"| Gold[("Gold Delta Summary")]
+        Silver -->|"Feature Pipeline"| ML["MLflow Pipeline Model (Unity Catalog)"]
         
-        Job["⏱️ Databricks Workflow (Orchestrator)"] -.->|Automates| Bronze
-        Job -.->|Automates| Silver
-        Job -.->|Automates| Gold
-        Job -.->|Automates| ML
+        Job["Databricks Workflow (Orchestrator)"] -.-> Bronze
+        Job -.-> Silver
+        Job -.-> Gold
+        Job -.-> ML
     end
 
-    subgraph ADLS_Gen2 ["☁️ Azure Data Lake Storage Gen2"]
-        Storage[("📦 cnt-unitycatalog / __unitystorage\nDelta Parquet Files")]
+    subgraph ADLS_Gen2 ["Azure Data Lake Storage Gen2"]
+        Storage[("cnt-unitycatalog / Delta Parquet Files")]
     end
 
-    subgraph Microsoft_Fabric_Tenant ["🏢 Microsoft Fabric Environment (Tenant B)"]
-        Shortcut["🔗 OneLake ADLS Gen2 Shortcuts\n(Zero-Copy Link)"]
-        Lakehouse[("🏛️ Fabric Lakehouse (lh_creditrisk_analytics)")]
-        SemanticModel["🧠 Direct Lake Semantic Model\n(DAX KPIs)"]
-        PowerBI["📊 Power BI Executive Dashboard\n(Sub-second Interactive BI)"]
+    subgraph Microsoft_Fabric_Tenant ["Microsoft Fabric Environment - Tenant B"]
+        Shortcut["OneLake ADLS Gen2 Shortcuts (Zero-Copy Link)"]
+        Lakehouse[("Fabric Lakehouse (lh_creditrisk_analytics)")]
+        SemanticModel["Direct Lake Semantic Model (DAX KPIs)"]
+        PowerBI["Power BI Executive Dashboard"]
 
         Shortcut --> Lakehouse
         Lakehouse --> SemanticModel
         SemanticModel --> PowerBI
     end
 
-    Bronze & Silver & Gold -->|Managed Tables| Storage
-    Storage -->|Direct Storage Link (Key Auth)| Shortcut
+    Bronze -->|"Managed Table Storage"| Storage
+    Silver -->|"Managed Table Storage"| Storage
+    Gold -->|"Managed Table Storage"| Storage
+    Storage -->|"Direct Storage Link - Key Auth"| Shortcut
 
     classDef db fill:#FF3621,stroke:#333,stroke-width:1px,color:#fff;
     classDef fb fill:#0078D4,stroke:#333,stroke-width:1px,color:#fff;
@@ -162,6 +163,5 @@ A critical architectural finding of this project is understanding **cross-platfo
 
 ## 👨‍💻 Author & Contact
 
-**Data Engineer / Cloud Solution Architect**  
 * Passionate about Lakehouse Architectures, Distributed Computing (Spark/Databricks), and Modern BI Platforms (Fabric/Power BI).
-* Connect with me on [LinkedIn](https://linkedin.com) | [GitHub](https://github.com)
+* Connect with me on [LinkedIn](https://www.linkedin.com/in/thathsara-rajapaksha-834bb2257/) 
